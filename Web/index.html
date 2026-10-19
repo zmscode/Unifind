@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<title>Unifind</title>
+		<meta name="description" content="Find any Unicode character by name, character or code point, with fuzzy, fzf-style search. The in-browser companion to Unifind for Mac." />
+		<meta name="theme-color" content="#32302f" />
+		<link rel="icon" type="image/png" href="favicon.png" />
+		<link rel="apple-touch-icon" href="icon.png" />
+		<script>
+			// Paint the last theme before the data loads, so the page doesn't flash.
+			try {
+				const vars = JSON.parse(localStorage.getItem("themeVars") || "null")
+				if (vars) for (const [k, v] of Object.entries(vars)) document.documentElement.style.setProperty(k, v)
+			} catch {}
+		</script>
+	</head>
+	<body class="loading">
+		<div id="app" class="app"><div class="splash">Loading characters…</div></div>
+		<script type="module" src="/src/main.ts"></script>
+	</body>
+</html>

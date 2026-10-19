@@ -2,3 +2,5 @@
 build/
 *.app
 .DS_Store
+Web/node_modules/
+Web/dist/
