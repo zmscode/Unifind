@@ -20,5 +20,5 @@ Or from source: `just install` builds and copies it to /Applications.
 
 ## Develop
 
-`just` lists the tasks: `just run`, `just test`, `just icon` (re-render the app icon),
+`just` lists the tasks: `just run`, `just test`, `just install`,
 `just release` / `just publish` (see RELEASING.md).

@@ -1,0 +1,32 @@
+{
+  "fill": {
+    "linear-gradient": [
+      "display-p3:0.271,0.251,0.239,1.000",
+      "display-p3:0.157,0.157,0.157,1.000"
+    ],
+    "orientation": {
+      "start": { "x": 0.5, "y": 0 },
+      "stop": { "x": 0.5, "y": 0.8 }
+    }
+  },
+  "groups": [
+    {
+      "name": "Star",
+      "layers": [
+        { "name": "star", "image-name": "2_star.svg", "glass": false }
+      ],
+      "shadow": { "kind": "neutral", "opacity": 0.3 }
+    },
+    {
+      "name": "Tile",
+      "layers": [
+        { "name": "tile", "image-name": "1_tile.svg", "glass": true }
+      ],
+      "shadow": { "kind": "layer-color", "opacity": 0.6 },
+      "translucency": { "enabled": true, "value": 0.15 }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [ "macOS" ]
+  }
+}

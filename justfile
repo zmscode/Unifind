@@ -20,7 +20,7 @@ default:
     @just --list
 
 # Build build/Unifind.app (release by default; `just build debug` for debug)
-build config="release":
+build config="release": _icon
     #!/usr/bin/env fish
     swift build -c {{ config }}; or exit 1
     set -l bin (swift build -c {{ config }} --show-bin-path)
@@ -28,7 +28,8 @@ build config="release":
     mkdir -p "{{ app }}/Contents/MacOS" "{{ app }}/Contents/Resources"
     cp "$bin/Unifind" "{{ app }}/Contents/MacOS/Unifind"
     cp Support/Info.plist "{{ app }}/Contents/Info.plist"
-    cp Support/AppIcon.icns "{{ app }}/Contents/Resources/AppIcon.icns"
+    cp build/icon/AppIcon.icns "{{ app }}/Contents/Resources/AppIcon.icns"
+    test -f build/icon/Assets.car; and cp build/icon/Assets.car "{{ app }}/Contents/Resources/Assets.car"
     # The version from VERSION; the build number counts commits.
     set -l build_number (git rev-list --count HEAD 2>/dev/null; or echo 1)
     /usr/libexec/PlistBuddy \
@@ -86,21 +87,37 @@ _quit:
 test:
     swift test -c release -Xswiftc -enable-testing
 
-# Re-render the app icon (Design/RenderIcons.swift) into Support/AppIcon.icns
-icon:
+# The app icon is an Icon Composer document (Support/AppIcon.icon: a gradient fill, a glass
+# tile and the star, as SVG layers). actool compiles it into Assets.car, which the Dock uses on
+# macOS 26+, plus a fallback AppIcon.icns. If actool can't run (Xcode's first-launch setup not
+# done), Icon Composer's ictool renders a static .icns instead.
+# Compile the app icon into build/icon when it has changed
+[private]
+_icon:
     #!/usr/bin/env fish
-    set -l work (mktemp -d)
-    swiftc -parse-as-library -O Design/RenderIcons.swift -o $work/render-icons; or exit 1
-    $work/render-icons Design/icons app-icon; or exit 1
-    mkdir -p $work/AppIcon.iconset
-    for size in 16 32 128 256 512
-        sips -z $size $size Design/icons/app-icon.png --out $work/AppIcon.iconset/icon_{$size}x{$size}.png >/dev/null
-        set -l double (math $size \* 2)
-        sips -z $double $double Design/icons/app-icon.png --out $work/AppIcon.iconset/icon_{$size}x{$size}@2x.png >/dev/null
+    set -l icon Support/AppIcon.icon
+    if test -f build/icon/AppIcon.icns; and test -z "$(find $icon -newer build/icon/AppIcon.icns)"
+        exit 0
     end
-    iconutil -c icns $work/AppIcon.iconset -o Support/AppIcon.icns; or exit 1
-    rm -rf $work
-    echo "Wrote Support/AppIcon.icns"
+    rm -rf build/icon
+    mkdir -p build/icon
+    if not xcrun actool $icon --compile build/icon --platform macosx --minimum-deployment-target 26.0 \
+            --app-icon AppIcon --output-partial-info-plist build/icon/partial.plist >/dev/null 2>build/icon/actool.log
+        or not test -f build/icon/Assets.car
+        echo "actool failed (see build/icon/actool.log); rendering a static icon with ictool" >&2
+        rm -f build/icon/Assets.car
+        set -l ictool (xcode-select -p)/../Applications/Icon\ Composer.app/Contents/Executables/ictool
+        mkdir -p build/icon/AppIcon.iconset
+        for size in 16 32 128 256 512
+            for scale in 1 2
+                set -l suffix (test $scale = 2; and echo @2x)
+                $ictool $icon --export-image --platform macOS --rendition Default \
+                    --width $size --height $size --scale $scale \
+                    --output-file build/icon/AppIcon.iconset/icon_{$size}x{$size}$suffix.png >/dev/null; or exit 1
+            end
+        end
+        iconutil -c icns build/icon/AppIcon.iconset -o build/icon/AppIcon.icns; or exit 1
+    end
 
 # Build, sign, notarize and zip a release, and point the cask at it
 release:
