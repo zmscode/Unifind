@@ -98,7 +98,11 @@ struct Sidebar: View {
 				.padding(.bottom, 12)
 			}
 			.scrollIndicators(.never)
-			ThemeBadge()
+			VStack(spacing: 6) {
+				ThemeBadge()
+				AppBadge()
+			}
+			.padding(10)
 		}
 		.background(Theme.bg1)
 	}
@@ -143,12 +147,50 @@ private struct SidebarRow: View {
 	}
 }
 
-/// The current theme's name and colours at the foot of the sidebar; opens Settings.
-private struct ThemeBadge: View {
+/// App icon, name and version at the very foot of the sidebar; opens Settings › About.
+private struct AppBadge: View {
+	@Environment(\.openSettings) private var openSettings
+	@AppStorage(SettingsTab.key) private var tab = SettingsTab.appearance.rawValue
 	@State private var hovering = false
 
 	var body: some View {
-		SettingsLink {
+		Button {
+			tab = SettingsTab.about.rawValue
+			openSettings()
+		} label: {
+			HStack(spacing: 7) {
+				Image(nsImage: AppInfo.icon)
+					.resizable()
+					.frame(width: 18, height: 18)
+				Text(AppInfo.name)
+					.font(.system(size: 11, weight: .semibold))
+					.foregroundStyle(hovering ? Theme.fg : Theme.fg4)
+				Spacer(minLength: 0)
+				Text(AppInfo.version)
+					.font(.system(size: 10, design: .monospaced))
+					.foregroundStyle(Theme.gray)
+			}
+			.padding(.horizontal, 8)
+			.padding(.vertical, 2)
+			.contentShape(Rectangle())
+		}
+		.buttonStyle(.plain)
+		.onHover { hovering = $0 }
+		.help("About \(AppInfo.name) \(AppInfo.fullVersion)")
+	}
+}
+
+/// The current theme's name and colours at the foot of the sidebar; opens Settings.
+private struct ThemeBadge: View {
+	@Environment(\.openSettings) private var openSettings
+	@AppStorage(SettingsTab.key) private var tab = SettingsTab.appearance.rawValue
+	@State private var hovering = false
+
+	var body: some View {
+		Button {
+			tab = SettingsTab.appearance.rawValue
+			openSettings()
+		} label: {
 			HStack(spacing: 8) {
 				HStack(spacing: -4) {
 					ForEach(Array(Theme.palette.spectrum.enumerated()), id: \.offset) { _, color in
@@ -178,7 +220,6 @@ private struct ThemeBadge: View {
 		.buttonStyle(.plain)
 		.onHover { hovering = $0 }
 		.help("Change theme (⌘,)")
-		.padding(10)
 	}
 }
 

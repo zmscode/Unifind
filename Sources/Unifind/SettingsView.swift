@@ -1,7 +1,24 @@
 import SwiftUI
 
-/// Settings (⌘,): pick a theme from a grid of live previews, grouped by family.
+/// Settings (⌘,): Appearance (glyph font and theme) and About.
 struct SettingsView: View {
+	@AppStorage(SettingsTab.key) private var tab = SettingsTab.appearance.rawValue
+
+	var body: some View {
+		TabView(selection: $tab) {
+			Tab("Appearance", systemImage: "paintpalette", value: SettingsTab.appearance.rawValue) {
+				AppearanceSettings()
+			}
+			Tab("About", systemImage: "info.circle", value: SettingsTab.about.rawValue) {
+				AboutSettings()
+			}
+		}
+		.frame(width: 560, height: 680)
+	}
+}
+
+/// Pick a glyph font, and a theme from a grid of live previews grouped by family.
+private struct AppearanceSettings: View {
 	@Bindable private var store = ThemeStore.shared
 
 	private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
@@ -35,7 +52,94 @@ struct SettingsView: View {
 			}
 			.padding(24)
 		}
-		.frame(width: 560, height: 680)
+	}
+}
+
+/// App icon, version, what's powering search, and links.
+private struct AboutSettings: View {
+	@Environment(AppModel.self) private var model
+
+	var body: some View {
+		VStack(spacing: 18) {
+			VStack(spacing: 8) {
+				Image(nsImage: AppInfo.icon)
+					.resizable()
+					.frame(width: 112, height: 112)
+				Text(AppInfo.name)
+					.font(.largeTitle.weight(.semibold))
+				Text("Version \(AppInfo.fullVersion)")
+					.font(.callout.monospacedDigit())
+					.foregroundStyle(.secondary)
+					.textSelection(.enabled)
+				Text(AppInfo.tagline)
+					.foregroundStyle(.secondary)
+			}
+			.padding(.top, 12)
+
+			Form {
+				LabeledContent("Smart Search") {
+					Label(smartStatus.text, systemImage: smartStatus.symbol)
+						.foregroundStyle(smartStatus.color)
+				}
+				LabeledContent("Characters") {
+					Text(characterSummary).monospacedDigit()
+				}
+				LabeledContent("Unicode data") {
+					Text("Names from Swift, blocks from macOS's ICU")
+				}
+				LabeledContent("Install") {
+					HStack(spacing: 6) {
+						Text(AppInfo.brewCommand)
+							.font(.callout.monospaced())
+							.textSelection(.enabled)
+							.lineLimit(1)
+							.truncationMode(.middle)
+						Button {
+							NSPasteboard.general.clearContents()
+							NSPasteboard.general.setString(AppInfo.brewCommand, forType: .string)
+						} label: {
+							Image(systemName: "doc.on.doc")
+						}
+						.buttonStyle(.borderless)
+						.help("Copy the Homebrew command")
+					}
+				}
+			}
+			.formStyle(.grouped)
+			.scrollDisabled(true)
+			.frame(height: 210)
+
+			HStack(spacing: 10) {
+				Link(destination: AppInfo.repository) { Label("GitHub", systemImage: "chevron.left.forwardslash.chevron.right") }
+				Link(destination: AppInfo.releases) { Label("Release Notes", systemImage: "list.bullet.rectangle") }
+				Link(destination: AppInfo.newIssue) { Label("Report an Issue", systemImage: "exclamationmark.bubble") }
+			}
+			.buttonStyle(.bordered)
+
+			Spacer()
+
+			Text("\(AppInfo.copyright) · Themes ported from Lines")
+				.font(.footnote)
+				.foregroundStyle(.tertiary)
+				.padding(.bottom, 16)
+		}
+		.padding(.horizontal, 24)
+		.frame(maxWidth: .infinity)
+	}
+
+	private var smartStatus: (text: String, symbol: String, color: Color) {
+		switch model.smart.engine {
+		case .appleIntelligence: ("Apple Intelligence, on device", "sparkles", .primary)
+		case .wordEmbedding:
+			("Word similarity (\(model.smart.unavailableReason ?? "no Apple Intelligence"))", "text.word.spacing", .secondary)
+		case .none: ("Unavailable", "xmark.circle", .secondary)
+		}
+	}
+
+	private var characterSummary: String {
+		guard let index = model.index else { return "Indexing…" }
+		let drawable = index.entries.lazy.filter(\.renderable).count
+		return "\(drawable.formatted()) drawable of \(index.entries.count.formatted()) named"
 	}
 }
 
