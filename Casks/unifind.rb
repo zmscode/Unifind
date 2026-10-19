@@ -1,6 +1,6 @@
 cask "unifind" do
-  version "1.0.0"
-  sha256 "7ccd81142c46ed6c9e68f44b10054abdb61498bd764df6a5f949771cc7e567ad"
+  version "1.0.1"
+  sha256 "f737bfa87e7bf02d48563de3fc21800b47ddb1259de07fba2250721139c892d4"
 
   url "https://github.com/zmscode/Unifind/releases/download/v#{version}/Unifind-#{version}.zip"
   name "Unifind"
