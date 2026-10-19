@@ -49,19 +49,23 @@ struct DetailBar: View {
 				Spacer(minLength: 8)
 
 				HStack(spacing: 6) {
+					FavoriteButton(entry: e)
 					ForEach(formats(for: e), id: \.label) { f in
 						CopyPill(label: f.label, value: f.value)
 					}
 				}
+				Rectangle().fill(Theme.bg2).frame(width: 1, height: 28)
+				ReturnAction()
 			} else {
-				Text("click to inspect  ·  double-click to copy  ·  ⏎ copies the top result")
+				Text("hover or click a character  ·  ⏎ to paste  ·  double-click to copy")
 					.font(.system(size: 10.5))
 					.foregroundStyle(Theme.gray.opacity(0.7))
-					.frame(maxWidth: .infinity)
+				Spacer()
+				ReturnAction(compact: true)
 			}
 		}
 		.padding(.horizontal, 16)
-		.frame(height: model.selectedEntry == nil ? 26 : 66)
+		.frame(height: model.selectedEntry == nil ? 30 : 66)
 		.background(model.selectedEntry == nil ? Theme.bg0 : Theme.bg1)
 		.overlay(alignment: .top) {
 			Rectangle().fill(Theme.bg2.opacity(model.selectedEntry == nil ? 0.5 : 1)).frame(
@@ -78,6 +82,82 @@ struct DetailBar: View {
 			("Swift", "\\u{\(hex)}"),
 			("Name", e.name),
 		]
+	}
+}
+
+/// "Paste to Claude ⏎", like Raycast's action bar: what ⏎ will do, and a button for it.
+private struct ReturnAction: View {
+	@Environment(AppModel.self) private var model
+	var compact = false
+	@State private var hovering = false
+	@State private var trusted = Paster.isTrusted
+
+	var body: some View {
+		let target = PasteTarget.shared
+		let pastes = Paster.enabled && trusted && target.app != nil
+		Button {
+			model.pasteReturnTarget()
+		} label: {
+			HStack(spacing: 6) {
+				if pastes, let icon = target.icon {
+					Image(nsImage: icon)
+						.resizable()
+						.frame(width: compact ? 14 : 16, height: compact ? 14 : 16)
+				}
+				Text(pastes ? "Paste to \(target.name ?? "App")" : "Copy")
+					.font(.system(size: compact ? 11 : 12, weight: .semibold))
+					.foregroundStyle(hovering ? Theme.fg : Theme.fg4)
+					.lineLimit(1)
+				Text("⏎")
+					.font(.system(size: compact ? 10 : 11, weight: .medium))
+					.foregroundStyle(Theme.gray)
+					.padding(.horizontal, 5)
+					.padding(.vertical, 1)
+					.overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Theme.bg3, lineWidth: 1))
+			}
+			.padding(.horizontal, compact ? 8 : 10)
+			.padding(.vertical, compact ? 3 : 6)
+			.background(hovering ? Theme.bg2 : .clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+			.contentShape(Rectangle())
+		}
+		.buttonStyle(.plain)
+		.disabled(model.returnTarget == nil)
+		.onHover { hovering = $0 }
+		.help(help(pastes: pastes))
+		// Accessibility is granted in System Settings; notice when it changes.
+		.onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+			trusted = Paster.isTrusted
+		}
+	}
+
+	private func help(pastes: Bool) -> String {
+		if pastes { return "Paste the hovered or selected character into \(PasteTarget.shared.name ?? "the last app")" }
+		if !Paster.enabled { return "Copy the hovered or selected character (pasting is off in Settings)" }
+		if !trusted { return "Copy the hovered or selected character. Allow Accessibility in Settings to paste instead." }
+		return "Copy the hovered or selected character"
+	}
+}
+
+private struct FavoriteButton: View {
+	@Environment(AppModel.self) private var model
+	let entry: CharEntry
+	@State private var hovering = false
+
+	var body: some View {
+		let on = model.isFavorite(entry.id)
+		Button {
+			model.toggleFavorite(entry)
+		} label: {
+			Image(systemName: on ? "star.fill" : "star")
+				.font(.system(size: 12, weight: .semibold))
+				.foregroundStyle(on ? Theme.bg0 : hovering ? Theme.smart : Theme.fg4)
+				.frame(width: 26, height: 22)
+				.background(on ? Theme.smart : Theme.bg2, in: Capsule())
+		}
+		.buttonStyle(.plain)
+		.onHover { hovering = $0 }
+		.help(on ? "Remove from Favourites" : "Add to Favourites")
+		.keyboardShortcut("d", modifiers: .command)
 	}
 }
 

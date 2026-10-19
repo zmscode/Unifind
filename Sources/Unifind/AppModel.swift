@@ -3,6 +3,9 @@ import Observation
 
 @MainActor @Observable
 final class AppModel {
+	/// One model for the window, the Quick Insert panel and Settings.
+	static let shared = AppModel()
+
 	private(set) var index: CharacterIndex?
 
 	var query = "" { didSet { if query != oldValue { scheduleSearch() } } }
@@ -35,6 +38,7 @@ final class AppModel {
 	private(set) var relatedTerms: [String] = []
 	private(set) var isThinking = false
 	private(set) var recents: [UInt32]
+	private(set) var favorites: [UInt32]
 	private(set) var toast: String?
 
 	let smart = SmartSearch()
@@ -42,8 +46,9 @@ final class AppModel {
 	private var toastTask: Task<Void, Never>?
 	private var browseCache: [CharCategory: [Int]] = [:]
 
-	init() {
+	private init() {
 		recents = (UserDefaults.standard.array(forKey: "recents") as? [Int])?.map(UInt32.init) ?? []
+		favorites = (UserDefaults.standard.array(forKey: "favorites") as? [Int])?.map(UInt32.init) ?? []
 		smartEnabled = UserDefaults.standard.object(forKey: "smartEnabled") as? Bool ?? true
 		hidden = CharCategory.Mask(
 			rawValue: UInt32(UserDefaults.standard.integer(forKey: "hiddenCategories")))
@@ -59,8 +64,17 @@ final class AppModel {
 
 	private func filter(for category: CharCategory) -> SearchFilter {
 		SearchFilter(
-			category: category, allowed: category == .recents ? Set(recents) : nil,
+			category: category, allowed: personalList(category).map(Set.init),
 			hidden: hidden, includeUnrenderable: includeUnrenderable)
+	}
+
+	/// Recently Copied and Favourites are lists the person built, not Unicode categories.
+	private func personalList(_ category: CharCategory) -> [UInt32]? {
+		switch category {
+		case .recents: recents
+		case .favorites: favorites
+		default: nil
+		}
 	}
 
 	private func filtersChanged() {
@@ -68,16 +82,34 @@ final class AppModel {
 		scheduleSearch()
 	}
 
+	private var loading: Task<Void, Never>?
+
+	/// Builds the index once, however many callers (app delegate, window) ask at launch.
 	func load() async {
-		guard index == nil else { return }
-		let built = await Task.detached(priority: .userInitiated) { CharacterIndex() }.value
-		index = built
-		scheduleSearch()
-		await smart.prewarm()
+		if let loading { return await loading.value }
+		let task = Task {
+			let built = await Task.detached(priority: .userInitiated) { CharacterIndex() }.value
+			index = built
+			scheduleSearch()
+			await smart.prewarm()
+		}
+		loading = task
+		await task.value
 	}
 
 	var currentCategory: CharCategory { category ?? .all }
 	var isSearching: Bool { !query.trimmingCharacters(in: .whitespaces).isEmpty }
+
+	/// Pasted text broken into its characters, invisible ones included ("é" written as e + ◌́,
+	/// zero-width joiners in emoji, variation selectors). Empty for ordinary name searches:
+	/// only text with two or more characters, at least one of them beyond printable ASCII.
+	var inspectedText: [CharEntry] {
+		guard let index else { return [] }
+		let scalars = Array(query.unicodeScalars)
+		guard scalars.count >= 2, scalars.contains(where: { $0.value > 0x7E || $0.value < 0x20 })
+		else { return [] }
+		return scalars.compactMap { s in index.byScalar[s.value].map { index.entries[$0] } }
+	}
 
 	func entry(_ i: Int) -> CharEntry? { index?.entries[i] }
 	var selectedEntry: CharEntry? {
@@ -102,7 +134,8 @@ final class AppModel {
 			return
 		}
 
-		let useSmart = smartEnabled && smart.engine != .none
+		// Pasted text isn't a description, so it never goes to the model.
+		let useSmart = smartEnabled && smart.engine != .none && inspectedText.isEmpty
 		searchTask = Task {
 			try? await Task.sleep(for: .milliseconds(40))
 			guard !Task.isCancelled else { return }
@@ -133,7 +166,7 @@ final class AppModel {
 	}
 
 	private func browse(_ category: CharCategory, index: CharacterIndex) -> [Int] {
-		if category == .recents { return recents.compactMap { index.byScalar[$0] } }
+		if let list = personalList(category) { return list.compactMap { index.byScalar[$0] } }
 		if let cached = browseCache[category] { return cached }
 		let list = index.indices(matching: filter(for: category))
 		browseCache[category] = list
@@ -145,24 +178,59 @@ final class AppModel {
 	func copy(_ text: String, label: String? = nil, recording scalar: UInt32? = nil) {
 		NSPasteboard.general.clearContents()
 		NSPasteboard.general.setString(text, forType: .string)
-		if let scalar {
-			recents.removeAll { $0 == scalar }
-			recents.insert(scalar, at: 0)
-			if recents.count > 60 { recents.removeLast(recents.count - 60) }
-			UserDefaults.standard.set(recents.map(Int.init), forKey: "recents")
-			if currentCategory == .recents && !isSearching { scheduleSearch() }
-		}
+		if let scalar { recordRecent(scalar) }
 		showToast("Copied \(label ?? text)")
+	}
+
+	func recordRecent(_ scalar: UInt32) {
+		recents.removeAll { $0 == scalar }
+		recents.insert(scalar, at: 0)
+		if recents.count > 60 { recents.removeLast(recents.count - 60) }
+		UserDefaults.standard.set(recents.map(Int.init), forKey: "recents")
+		if currentCategory == .recents && !isSearching { scheduleSearch() }
+	}
+
+	// MARK: Favourites
+
+	func isFavorite(_ scalar: UInt32) -> Bool { favorites.contains(scalar) }
+
+	func toggleFavorite(_ e: CharEntry) {
+		if let i = favorites.firstIndex(of: e.id) {
+			favorites.remove(at: i)
+			showToast("Removed \(e.glyph) from Favourites")
+		} else {
+			favorites.append(e.id)
+			showToast("Added \(e.glyph) to Favourites")
+		}
+		UserDefaults.standard.set(favorites.map(Int.init), forKey: "favorites")
+		if currentCategory == .favorites { scheduleSearch() }
 	}
 
 	func copyCharacter(_ e: CharEntry) {
 		copy(String(Unicode.Scalar(e.id)!), recording: e.id)
 	}
 
-	func copyFirstResult() {
-		guard let i = directResults.first ?? relatedResults.first, let e = entry(i) else { return }
+	/// What ⏎ acts on: the hovered character, else the selected one, else the top result.
+	var returnTarget: CharEntry? {
+		if let hovered = HoverState.shared.entry { return hovered }
+		if let selectedEntry { return selectedEntry }
+		if let first = inspectedText.first { return first }
+		return (directResults.first ?? relatedResults.first).flatMap(entry)
+	}
+
+	/// ⏎: paste into the last app you used when it has a text field focused, otherwise copy.
+	func pasteReturnTarget() {
+		guard let e = returnTarget else { return }
 		selection = e.id
-		copyCharacter(e)
+		recordRecent(e.id)
+		let text = String(Unicode.Scalar(e.id)!)
+		Task {
+			switch await Paster.paste(text) {
+			case .pasted(let app): showToast("Pasted \(e.glyph) into \(app)")
+			case .copied(let reason):
+				showToast(reason.map { "Copied \(e.glyph) · \($0)" } ?? "Copied \(e.glyph)")
+			}
+		}
 	}
 
 	private func showToast(_ text: String) {

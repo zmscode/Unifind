@@ -63,8 +63,15 @@ enum CharCategory: String, CaseIterable, Identifiable, Sendable {
 	case marks = "Combining Marks"
 	case spaces = "Spaces & Invisible"
 	case ideographs = "Ideographs & Syllables"
+	// Last, so the bit masks of the cases above (saved as hidden filters) don't shift.
+	case favorites = "Favourites"
 
 	var id: String { rawValue }
+
+	/// The Unicode categories, without All, Recently Copied and Favourites.
+	static var unicodeCategories: [CharCategory] {
+		allCases.filter { ![.all, .recents, .favorites].contains($0) }
+	}
 
 	var systemImage: String {
 		switch self {
@@ -83,6 +90,7 @@ enum CharCategory: String, CaseIterable, Identifiable, Sendable {
 		case .marks: "character.cursor.ibeam"
 		case .spaces: "space"
 		case .ideographs: "character.ja"
+		case .favorites: "star"
 		}
 	}
 

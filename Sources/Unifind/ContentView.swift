@@ -2,7 +2,8 @@ import SwiftUI
 
 @main
 struct UnifindApp: App {
-	@State private var model = AppModel()
+	@NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+	@State private var model = AppModel.shared
 
 	var body: some Scene {
 		WindowGroup("Unifind") {
@@ -11,6 +12,16 @@ struct UnifindApp: App {
 				.task { await model.load() }
 		}
 		.defaultSize(width: 980, height: 660)
+		.commands {
+			CommandGroup(after: .pasteboard) {
+				Button("Inspect Clipboard Text") {
+					if let text = NSPasteboard.general.string(forType: .string) {
+						model.query = text
+					}
+				}
+				.keyboardShortcut("v", modifiers: [.command, .shift])
+			}
+		}
 
 		Settings {
 			SettingsView()
@@ -37,7 +48,7 @@ struct ContentView: View {
 		.tint(Theme.accent)
 		.preferredColorScheme(Theme.palette.colorScheme)
 		.searchable(text: $model.query, placement: .toolbar, prompt: "Search characters")
-		.onSubmit(of: .search) { model.copyFirstResult() }
+		.onSubmit(of: .search) { model.pasteReturnTarget() }
 		.toolbar(removing: .title)
 		.toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
 		.containerBackground(Theme.bg0, for: .window)
@@ -89,20 +100,18 @@ struct Sidebar: View {
 				VStack(alignment: .leading, spacing: 2) {
 					row(.all)
 					row(.recents)
+					row(.favorites)
 					Rectangle().fill(Theme.bg2).frame(height: 1).padding(.vertical, 8).padding(
 						.horizontal, 8)
-					ForEach(CharCategory.allCases.dropFirst(2)) { row($0) }
+					ForEach(CharCategory.unicodeCategories) { row($0) }
 				}
 				.padding(.horizontal, 10)
 				.padding(.top, 8)
 				.padding(.bottom, 12)
 			}
 			.scrollIndicators(.never)
-			VStack(spacing: 6) {
-				ThemeBadge()
-				AppBadge()
-			}
-			.padding(10)
+			AppBadge()
+				.padding(10)
 		}
 		.background(Theme.bg1)
 	}
@@ -150,7 +159,7 @@ private struct SidebarRow: View {
 /// App icon, name and version at the very foot of the sidebar; opens Settings › About.
 private struct AppBadge: View {
 	@Environment(\.openSettings) private var openSettings
-	@AppStorage(SettingsTab.key) private var tab = SettingsTab.appearance.rawValue
+	@AppStorage(SettingsTab.key) private var tab = SettingsTab.general.rawValue
 	@State private var hovering = false
 
 	var body: some View {
@@ -158,68 +167,31 @@ private struct AppBadge: View {
 			tab = SettingsTab.about.rawValue
 			openSettings()
 		} label: {
-			HStack(spacing: 7) {
+			HStack(spacing: 10) {
 				Image(nsImage: AppInfo.icon)
 					.resizable()
-					.frame(width: 18, height: 18)
-				Text(AppInfo.name)
-					.font(.system(size: 11, weight: .semibold))
-					.foregroundStyle(hovering ? Theme.fg : Theme.fg4)
+					.frame(width: 34, height: 34)
+				VStack(alignment: .leading, spacing: 1) {
+					Text(AppInfo.name)
+						.font(.system(size: 15, weight: .semibold))
+						.foregroundStyle(hovering ? Theme.fg : Theme.fg.opacity(0.9))
+					Text("Version \(AppInfo.version)")
+						.font(.system(size: 10.5, design: .monospaced))
+						.foregroundStyle(Theme.gray)
+				}
 				Spacer(minLength: 0)
-				Text(AppInfo.version)
-					.font(.system(size: 10, design: .monospaced))
-					.foregroundStyle(Theme.gray)
 			}
 			.padding(.horizontal, 8)
-			.padding(.vertical, 2)
-			.contentShape(Rectangle())
-		}
-		.buttonStyle(.plain)
-		.onHover { hovering = $0 }
-		.help("About \(AppInfo.name) \(AppInfo.fullVersion)")
-	}
-}
-
-/// The current theme's name and colours at the foot of the sidebar; opens Settings.
-private struct ThemeBadge: View {
-	@Environment(\.openSettings) private var openSettings
-	@AppStorage(SettingsTab.key) private var tab = SettingsTab.appearance.rawValue
-	@State private var hovering = false
-
-	var body: some View {
-		Button {
-			tab = SettingsTab.appearance.rawValue
-			openSettings()
-		} label: {
-			HStack(spacing: 8) {
-				HStack(spacing: -4) {
-					ForEach(Array(Theme.palette.spectrum.enumerated()), id: \.offset) { _, color in
-						Circle()
-							.fill(color)
-							.frame(width: 12, height: 12)
-							.overlay(Circle().strokeBorder(Theme.bg1, lineWidth: 1.5))
-					}
-				}
-				Text(Theme.palette.name)
-					.font(.system(size: 11, weight: .medium))
-					.foregroundStyle(hovering ? Theme.fg : Theme.fg4)
-					.lineLimit(1)
-				Spacer(minLength: 0)
-				Image(systemName: "paintpalette")
-					.font(.system(size: 11))
-					.foregroundStyle(hovering ? Theme.accent : Theme.gray)
-			}
-			.padding(.horizontal, 10)
-			.padding(.vertical, 8)
+			.padding(.vertical, 6)
 			.background(
-				RoundedRectangle(cornerRadius: 8, style: .continuous)
-					.fill(hovering ? Theme.bg2 : Theme.bg2.opacity(0.5))
+				RoundedRectangle(cornerRadius: 9, style: .continuous)
+					.fill(hovering ? Theme.bg2 : .clear)
 			)
 			.contentShape(Rectangle())
 		}
 		.buttonStyle(.plain)
 		.onHover { hovering = $0 }
-		.help("Change theme (⌘,)")
+		.help("About \(AppInfo.name) \(AppInfo.fullVersion)")
 	}
 }
 
@@ -241,7 +213,7 @@ struct ResultsView: View {
 			if model.index == nil {
 				ProgressView().controlSize(.small)
 			} else if model.directResults.isEmpty && model.relatedResults.isEmpty
-				&& !model.isThinking
+				&& !model.isThinking && model.inspectedText.isEmpty
 			{
 				emptyState
 			} else {
@@ -249,6 +221,14 @@ struct ResultsView: View {
 					LazyVStack(alignment: .leading, spacing: spacing, pinnedViews: .sectionHeaders)
 					{
 						if model.isSearching {
+							let inspected = model.inspectedText
+							if !inspected.isEmpty {
+								Section {
+									textRows(inspected)
+								} header: {
+									header("In your text", count: inspected.count, tint: Theme.smart)
+								}
+							}
 							if !model.directResults.isEmpty {
 								Section {
 									rows(model.directResults, key: "d")
@@ -309,6 +289,21 @@ struct ResultsView: View {
 		}
 	}
 
+	/// Pasted text in order, repeats and all, so ids are positions rather than characters.
+	@ViewBuilder
+	private func textRows(_ entries: [CharEntry]) -> some View {
+		let cols = columns
+		let rowCount = (entries.count + cols - 1) / cols
+		ForEach(0..<rowCount, id: \.self) { r in
+			HStack(spacing: spacing) {
+				ForEach((r * cols)..<min(entries.count, (r + 1) * cols), id: \.self) { i in
+					GlyphTile(entry: entries[i], size: tile)
+				}
+			}
+			.id("t\(r)-\(cols)")
+		}
+	}
+
 	private func header(_ title: String, count: Int, tint: Color = Theme.accent) -> some View {
 		HStack(spacing: 8) {
 			Circle().fill(tint).frame(width: 7, height: 7)
@@ -361,15 +356,25 @@ struct ResultsView: View {
 	}
 
 	private var emptyState: some View {
-		VStack(spacing: 10) {
-			Image(systemName: model.currentCategory == .recents ? "clock" : "magnifyingglass")
+		let browsing = !model.isSearching
+		let (symbol, title, hint): (String, String, String?) =
+			switch (model.currentCategory, browsing) {
+			case (.recents, true): ("clock", "Nothing copied yet", "Double-click a character to copy it.")
+			case (.favorites, true):
+				("star", "No favourites yet", "Right-click a character, or press ☆ in the bottom bar.")
+			default: ("magnifyingglass", "No characters", nil)
+			}
+		return VStack(spacing: 10) {
+			Image(systemName: symbol)
 				.font(.system(size: 28))
 				.foregroundStyle(Theme.bg3)
-			Text(
-				model.currentCategory == .recents && !model.isSearching
-					? "Nothing copied yet" : "No characters"
-			)
-			.foregroundStyle(Theme.fg4)
+			Text(title)
+				.foregroundStyle(Theme.fg4)
+			if let hint {
+				Text(hint)
+					.font(.system(size: 11))
+					.foregroundStyle(Theme.gray)
+			}
 			if model.isSearching && model.currentCategory != .all {
 				Button("Search all characters") { model.category = .all }
 					.buttonStyle(.plain)
@@ -434,6 +439,10 @@ struct GlyphTile: View {
 			.draggable(String(Unicode.Scalar(entry.id)!))
 			.contextMenu {
 				Button("Copy Character") { model.copyCharacter(entry) }
+				Button(model.isFavorite(entry.id) ? "Remove from Favourites" : "Add to Favourites") {
+					model.toggleFavorite(entry)
+				}
+				Divider()
 				Button("Copy Name") { model.copy(entry.name) }
 				Button("Copy Code Point") { model.copy(entry.codepoint) }
 			}

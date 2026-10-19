@@ -77,7 +77,7 @@ _quit:
     #!/usr/bin/env fish
     if pgrep -xq Unifind
         osascript -e 'tell application id "{{ bundle_id }}" to quit' >/dev/null 2>&1
-        for _ in (seq 50)
+        for attempt in (seq 50)
             pgrep -xq Unifind; or break
             sleep 0.1
         end

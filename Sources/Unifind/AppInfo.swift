@@ -33,6 +33,6 @@ enum AppInfo {
 
 /// Which Settings tab is showing, so the sidebar can open Settings straight to About.
 enum SettingsTab: String {
-	case appearance, about
+	case general, appearance, about
 	static let key = "settingsTab"
 }

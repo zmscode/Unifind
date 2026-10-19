@@ -2,10 +2,13 @@ import SwiftUI
 
 /// Settings (⌘,): Appearance (glyph font and theme) and About.
 struct SettingsView: View {
-	@AppStorage(SettingsTab.key) private var tab = SettingsTab.appearance.rawValue
+	@AppStorage(SettingsTab.key) private var tab = SettingsTab.general.rawValue
 
 	var body: some View {
 		TabView(selection: $tab) {
+			Tab("General", systemImage: "gearshape", value: SettingsTab.general.rawValue) {
+				GeneralSettings()
+			}
 			Tab("Appearance", systemImage: "paintpalette", value: SettingsTab.appearance.rawValue) {
 				AppearanceSettings()
 			}
@@ -14,6 +17,52 @@ struct SettingsView: View {
 			}
 		}
 		.frame(width: 560, height: 680)
+	}
+}
+
+/// What ⏎ does: paste into the last app you used (needs Accessibility), or just copy.
+private struct GeneralSettings: View {
+	@AppStorage(Paster.enabledKey) private var pastes = true
+	@State private var trusted = Paster.isTrusted
+
+	var body: some View {
+		Form {
+			Section {
+				Toggle("⏎ pastes into the last app you used", isOn: $pastes)
+				if pastes {
+					LabeledContent("Accessibility") {
+						if trusted {
+							Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+						} else {
+							HStack {
+								Label("Not allowed", systemImage: "exclamationmark.triangle.fill")
+									.foregroundStyle(.orange)
+								Button("Allow…") {
+									Paster.requestTrust()
+									Paster.openAccessibilitySettings()
+								}
+							}
+						}
+					}
+				}
+			} header: {
+				Text("Pasting")
+			} footer: {
+				Text(
+					"Hover or select a character and press ⏎: Unifind switches back to the app you were in and pastes it, when that app has a text field focused. Otherwise ⏎ copies. Pasting needs Accessibility access, which macOS asks for again after each update while Unifind isn't notarized."
+				)
+				.font(.footnote)
+				.foregroundStyle(.secondary)
+			}
+		}
+		.formStyle(.grouped)
+		// Accessibility is granted in System Settings, so keep checking while this is open.
+		.task {
+			while !Task.isCancelled {
+				trusted = Paster.isTrusted
+				try? await Task.sleep(for: .seconds(1))
+			}
+		}
 	}
 }
 

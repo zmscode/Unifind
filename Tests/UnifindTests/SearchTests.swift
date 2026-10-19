@@ -99,3 +99,37 @@ import Testing
 		}
 	}
 }
+
+/// These share `AppModel.shared`, so they run one at a time.
+@Suite(.serialized) struct ModelTests {
+	@MainActor @Test func inspectsPastedText() async {
+		let model = AppModel.shared
+		await model.load()
+		model.query = "e\u{301}👨‍👩‍👧"
+		#expect(
+			model.inspectedText.map(\.id) == [0x65, 0x301, 0x1F468, 0x200D, 0x1F469, 0x200D, 0x1F467])
+		model.query = "right arrow"
+		#expect(model.inspectedText.isEmpty)
+		model.query = ""
+	}
+
+	@MainActor @Test func returnTargetPrefersHoverThenSelection() async throws {
+		let model = AppModel.shared
+		await model.load()
+		let index = try #require(model.index)
+		let snowman = index.entries[index.byScalar[0x2603]!]
+		let star = index.entries[index.byScalar[0x2605]!]
+		model.query = "snowman"
+		try await Task.sleep(for: .milliseconds(300))
+		model.selection = nil
+		HoverState.shared.entry = nil
+		#expect(model.returnTarget?.id == snowman.id)  // top result
+		model.selection = star.id
+		#expect(model.returnTarget?.id == star.id)  // selection beats top result
+		HoverState.shared.entry = snowman
+		#expect(model.returnTarget?.id == snowman.id)  // hover beats selection
+		HoverState.shared.entry = nil
+		model.selection = nil
+		model.query = ""
+	}
+}
