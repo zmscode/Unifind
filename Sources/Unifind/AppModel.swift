@@ -53,6 +53,8 @@ final class AppModel {
 		hidden = CharCategory.Mask(
 			rawValue: UInt32(UserDefaults.standard.integer(forKey: "hiddenCategories")))
 		includeUnrenderable = UserDefaults.standard.bool(forKey: "includeUnrenderable")
+		// `open -a Unifind --args -query arrow` opens with a search already typed.
+		query = UserDefaults.standard.string(forKey: "query") ?? ""
 	}
 
 	var filtersActive: Bool { !hidden.isEmpty || includeUnrenderable }
