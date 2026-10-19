@@ -157,9 +157,11 @@ select:focus-visible {
 .install {
 	display: flex;
 	flex-direction: column;
+	align-items: stretch;
 	gap: 6px;
-	padding: 10px;
+	padding: 9px;
 	border-radius: 10px;
+	text-align: left;
 	background: color-mix(in srgb, var(--accent) 10%, var(--bg1));
 	border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 }
@@ -172,23 +174,29 @@ select:focus-visible {
 	color: var(--accent);
 }
 
+.install-title span {
+	flex: 1;
+}
+
+.install-title .icon:last-child {
+	color: var(--fg4);
+}
+
+.install:hover .install-title .icon:last-child {
+	color: var(--accent);
+}
+
 .install-command {
-	display: flex;
-	align-items: center;
-	gap: 6px;
+	display: block;
 	padding: 6px 8px;
 	border-radius: 7px;
 	background: var(--bg0);
 	color: var(--fg4);
-	text-align: left;
+	font: 10px/1.45 var(--mono);
+	overflow-wrap: anywhere;
 }
 
-.install-command code {
-	font: 10.5px/1.35 var(--mono);
-	flex: 1;
-}
-
-.install-command:hover {
+.install:hover .install-command {
 	color: var(--fg);
 }
 

@@ -10,11 +10,9 @@
     "test": "node --experimental-strip-types --test test/*.test.ts"
   },
   "devDependencies": {
+    "@phosphor-icons/core": "^2.1.1",
     "@types/node": "^24.19.2",
     "typescript": "^5.9.3",
     "vite": "^8.3.4"
-  },
-  "dependencies": {
-    "lucide": "^1.59.0"
   }
 }

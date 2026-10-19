@@ -23,7 +23,13 @@ function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Record<string, 
 		if (v === undefined || v === false) continue
 		if (k.startsWith("on")) el.addEventListener(k.slice(2), v as EventListener)
 		else if (k === "class") el.className = v as string
-		else if (k === "style") Object.assign(el.style, v)
+		else if (k === "style") {
+			// Custom properties (--tint) need setProperty; Object.assign drops them.
+			for (const [name, value] of Object.entries(v as Record<string, string>)) {
+				if (name.startsWith("--")) el.style.setProperty(name, value)
+				else (el.style as unknown as Record<string, string>)[name] = value
+			}
+		}
 		else if (k in el && k !== "list") (el as unknown as Record<string, unknown>)[k] = v
 		else el.setAttribute(k, v === true ? "" : String(v))
 	}
@@ -604,9 +610,11 @@ function setQuery(q: string) {
 function renderToolbar() {
 	const filterButton = document.getElementById("filter")!
 	filterButton.classList.toggle("active", filtersActive())
+	filterButton.replaceChildren(icon(icons.filter, 17, filtersActive()))
 	const smartButton = document.getElementById("smart")!
 	smartButton.classList.toggle("active", state.smartEnabled)
 	smartButton.setAttribute("aria-pressed", String(state.smartEnabled))
+	smartButton.replaceChildren(icon(icons.sparkles, 17, state.smartEnabled))
 	smartButton.title = smart.help
 }
 
@@ -744,18 +752,14 @@ function renderSettings() {
 	)
 }
 
+/** The whole card copies the Homebrew command. */
 function installCard() {
 	return h(
-		"div",
-		{ class: "install" },
-		h("div", { class: "install-title" }, icon(icons.download, 13), "Get the Mac app"),
-		h(
-			"button",
-			{ class: "install-command", title: "Copy the Homebrew command", onclick: () => copy(brewCommand, "the install command") },
-			h("code", {}, "brew install --cask ", h("wbr"), "zmscode/unifind/unifind"),
-			icon(icons.copy, 13),
-		),
-		h("div", { class: "install-note" }, "macOS 26 · Apple silicon"),
+		"button",
+		{ class: "install", title: "Copy the Homebrew command", onclick: () => copy(brewCommand, "the install command") },
+		h("span", { class: "install-title" }, icon(icons.download, 13), h("span", {}, "Get the Mac app"), icon(icons.copy, 13)),
+		h("code", { class: "install-command" }, "brew install --cask", h("br"), "zmscode/unifind/unifind"),
+		h("span", { class: "install-note" }, "macOS 26 · Apple silicon"),
 	)
 }
 
