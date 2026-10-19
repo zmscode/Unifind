@@ -1,38 +1,78 @@
-import {
-	ArrowUpRight, Clock, Copy, CornerDownLeft, DollarSign, Download, ExternalLink, Grid2x2, Grid3x3,
-	Hash, Languages, ListFilter, Quote, Search, Settings, Sigma, Smile, Space, Sparkles, Star,
-	TextCursor, Triangle, Type, X, createElement, type IconNode,
-} from "lucide"
+// Phosphor icons (regular weight, with fill variants for "on" states), standing in for the SF
+// Symbols the app uses.
+import arrowSquareOut from "@phosphor-icons/core/assets/regular/arrow-square-out.svg?raw"
+import arrowUpRight from "@phosphor-icons/core/assets/regular/arrow-up-right.svg?raw"
+import clock from "@phosphor-icons/core/assets/regular/clock.svg?raw"
+import copy from "@phosphor-icons/core/assets/regular/copy.svg?raw"
+import currencyDollar from "@phosphor-icons/core/assets/regular/currency-dollar.svg?raw"
+import cursorText from "@phosphor-icons/core/assets/regular/cursor-text.svg?raw"
+import downloadSimple from "@phosphor-icons/core/assets/regular/download-simple.svg?raw"
+import funnelSimple from "@phosphor-icons/core/assets/regular/funnel-simple.svg?raw"
+import funnelSimpleFill from "@phosphor-icons/core/assets/fill/funnel-simple-fill.svg?raw"
+import fn from "@phosphor-icons/core/assets/regular/function.svg?raw"
+import gearSix from "@phosphor-icons/core/assets/regular/gear-six.svg?raw"
+import gridFour from "@phosphor-icons/core/assets/regular/grid-four.svg?raw"
+import gridNine from "@phosphor-icons/core/assets/regular/grid-nine.svg?raw"
+import hash from "@phosphor-icons/core/assets/regular/hash.svg?raw"
+import magnifyingGlass from "@phosphor-icons/core/assets/regular/magnifying-glass.svg?raw"
+import quotes from "@phosphor-icons/core/assets/regular/quotes.svg?raw"
+import selection from "@phosphor-icons/core/assets/regular/selection.svg?raw"
+import smiley from "@phosphor-icons/core/assets/regular/smiley.svg?raw"
+import sparkle from "@phosphor-icons/core/assets/regular/sparkle.svg?raw"
+import sparkleFill from "@phosphor-icons/core/assets/fill/sparkle-fill.svg?raw"
+import star from "@phosphor-icons/core/assets/regular/star.svg?raw"
+import starFill from "@phosphor-icons/core/assets/fill/star-fill.svg?raw"
+import textAa from "@phosphor-icons/core/assets/regular/text-aa.svg?raw"
+import translate from "@phosphor-icons/core/assets/regular/translate.svg?raw"
+import triangle from "@phosphor-icons/core/assets/regular/triangle.svg?raw"
+import xIcon from "@phosphor-icons/core/assets/regular/x.svg?raw"
 import { Category } from "./data.ts"
 
+export interface Icon {
+	regular: string
+	fill?: string
+}
+
 export const icons = {
-	search: Search, filter: ListFilter, sparkles: Sparkles, settings: Settings, star: Star, x: X,
-	copy: Copy, enter: CornerDownLeft, download: Download, external: ExternalLink, clock: Clock,
+	search: { regular: magnifyingGlass },
+	filter: { regular: funnelSimple, fill: funnelSimpleFill },
+	sparkles: { regular: sparkle, fill: sparkleFill },
+	settings: { regular: gearSix },
+	star: { regular: star, fill: starFill },
+	x: { regular: xIcon },
+	copy: { regular: copy },
+	download: { regular: downloadSimple },
+	external: { regular: arrowSquareOut },
+	clock: { regular: clock },
+} satisfies Record<string, Icon>
+
+/** The SF Symbols the app's sidebar uses, as their nearest Phosphor icons. */
+export const categoryIcons: Record<Category, Icon> = {
+	[Category.all]: { regular: gridNine },
+	[Category.recents]: { regular: clock },
+	[Category.emoji]: { regular: smiley },
+	[Category.arrows]: { regular: arrowUpRight },
+	[Category.shapes]: { regular: triangle },
+	[Category.math]: { regular: fn },
+	[Category.currency]: { regular: currencyDollar },
+	[Category.punctuation]: { regular: quotes },
+	[Category.letters]: { regular: textAa },
+	[Category.numbers]: { regular: hash },
+	[Category.symbols]: { regular: star },
+	[Category.boxDrawing]: { regular: gridFour },
+	[Category.marks]: { regular: cursorText },
+	[Category.spaces]: { regular: selection },
+	[Category.ideographs]: { regular: translate },
+	[Category.favorites]: { regular: star },
 }
 
-/** The SF Symbols the app's sidebar uses, as their nearest Lucide icons. */
-export const categoryIcons: Record<Category, IconNode> = {
-	[Category.all]: Grid3x3,
-	[Category.recents]: Clock,
-	[Category.emoji]: Smile,
-	[Category.arrows]: ArrowUpRight,
-	[Category.shapes]: Triangle,
-	[Category.math]: Sigma,
-	[Category.currency]: DollarSign,
-	[Category.punctuation]: Quote,
-	[Category.letters]: Type,
-	[Category.numbers]: Hash,
-	[Category.symbols]: Star,
-	[Category.boxDrawing]: Grid2x2,
-	[Category.marks]: TextCursor,
-	[Category.spaces]: Space,
-	[Category.ideographs]: Languages,
-	[Category.favorites]: Star,
-}
-
-export function icon(node: IconNode, size = 16, filled = false): SVGElement {
-	const svg = createElement(node, { width: size, height: size, "stroke-width": 2 })
+export function icon(i: Icon, size = 16, filled = false): SVGElement {
+	const template = document.createElement("template")
+	template.innerHTML = (filled && i.fill) || i.regular
+	const svg = template.content.firstElementChild as SVGElement
+	svg.setAttribute("width", String(size))
+	svg.setAttribute("height", String(size))
+	svg.setAttribute("aria-hidden", "true")
 	svg.classList.add("icon")
-	if (filled) svg.setAttribute("fill", "currentColor")
 	return svg
 }
