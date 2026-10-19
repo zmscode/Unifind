@@ -1,0 +1,51 @@
+# Builds the web version (Web/) and deploys it to GitHub Pages.
+#
+# The character data in Web/public/data is committed: it comes from the Mac app's own index
+# (`just web-data`, which needs macOS for Swift's Unicode tables and ICU's block names), so the
+# site always matches the app it was exported from. Rerun `just web-data` when the index changes.
+name: Deploy web version
+
+on:
+  push:
+    branches: [main]
+    paths: ["Web/**", "VERSION", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: Web/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: Web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

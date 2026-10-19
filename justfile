@@ -178,3 +178,31 @@ cask-check:
 # Remove build products
 clean:
     rm -rf build .build
+
+# Export the character index and themes for the web version (Web/public/data)
+web-data:
+    #!/usr/bin/env fish
+    mkdir -p build/web-export
+    swiftc -O -swift-version 6 -o build/web-export/unifind-export \
+        Sources/Unifind/CharacterIndex.swift Sources/Unifind/Theme.swift Web/export/main.swift; or exit 1
+    ./build/web-export/unifind-export Web/public/data
+
+# Run the web version's dev server
+web: _web-deps
+    cd Web; and npm run dev
+
+# Build the web version into Web/dist
+web-build: _web-deps
+    cd Web; and npm run build
+
+# Run the web version's search tests against the exported data
+web-test: _web-deps
+    cd Web; and npm test
+
+[private]
+_web-deps:
+    #!/usr/bin/env fish
+    cd Web
+    if not test -d node_modules; or test package-lock.json -nt node_modules
+        npm ci; or exit 1
+    end
